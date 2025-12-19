@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=65"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "quizen"
+version = "0.1.0"
+description = "Quizen pipeline and data models"
+authors = [{name = "Quizen"}]
+requires-python = ">=3.10"
+dependencies = [
+    "pydantic>=2.6",
+    "httpx>=0.26",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
