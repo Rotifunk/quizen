@@ -18,12 +18,15 @@ def test_create_app_runs_pipeline_and_persists(tmp_path):
     assert response.status_code == 200
     run_id = response.json()["run_id"]
     assert response.json()["question_count"] == 2
+    assert response.json()["status"] == "completed"
+    assert response.json()["progress"] == 1
 
     detail = client.get(f"/runs/{run_id}")
     assert detail.status_code == 200
     body = detail.json()
     assert body["questions"]
     assert body["events"][0]["event"] == "run_started"
+    assert body["state"]["status"] == "completed"
 
 
 def test_health_endpoint():
@@ -50,6 +53,7 @@ def test_home_template_and_filters(tmp_path):
 
     filtered = client.get(f"/runs/{run}/questions", params={"min_score": 79}).json()
     assert filtered["count"] == 3
+    assert filtered["state"]["status"] == "completed"
 
     style_only = client.get(f"/runs/{run}/questions", params={"style_only": True}).json()
     assert style_only["count"] <= filtered["count"]
@@ -79,3 +83,40 @@ def test_question_patch_validates(tmp_path):
     )
     assert valid.status_code == 200
     assert valid.json()["question"]["answer_code"] == 2
+    assert valid.json()["state"]["status"] == "completed"
+
+
+def test_revalidation_endpoint_updates_state(tmp_path):
+    client = TestClient(create_app(storage_dir=tmp_path))
+    payload = {
+        "lectures": [
+            {"order": "001", "id": "L1", "title": "Intro"},
+            {"order": "002", "id": "L2", "title": "Part2"},
+        ],
+        "total_questions": 2,
+        "difficulty": 3,
+        "include_mcq": True,
+        "include_ox": False,
+    }
+    run_resp = client.post("/runs", json=payload)
+    run_id = run_resp.json()["run_id"]
+
+    revalidate = client.post(f"/runs/{run_id}/revalidate")
+    assert revalidate.status_code == 200
+    assert revalidate.json()["status"] == "completed"
+
+    detail = client.get(f"/runs/{run_id}")
+    events = [e["event"] for e in detail.json()["events"]]
+    assert "revalidation_completed" in events
+
+
+def test_token_auth_dependency(monkeypatch, tmp_path):
+    monkeypatch.setenv("QUIZEN_AUTH_TOKEN", "secret")
+    app = create_app(storage_dir=tmp_path)
+    client = TestClient(app)
+
+    unauth = client.get("/")
+    assert unauth.status_code == 401
+
+    authed = client.get("/", headers={"X-Auth-Token": "secret"})
+    assert authed.status_code == 200
