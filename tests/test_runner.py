@@ -28,9 +28,14 @@ class FakeDrive:
 class FakeSheets:
     def __init__(self):
         self.writes = []
+        self.meta_writes = []
 
     def write_export_rows(self, spreadsheet_id, rows, sheet_name="Sheet1"):
         self.writes.append((spreadsheet_id, list(rows), sheet_name))
+        return {"written": len(rows)}
+
+    def append_meta_sheet(self, spreadsheet_id, sheet_name, rows):
+        self.meta_writes.append((spreadsheet_id, sheet_name, rows))
         return {"written": len(rows)}
 
 
@@ -59,9 +64,11 @@ def test_run_drive_to_sheet_uses_clients_and_returns_result(monkeypatch):
     fake_creds = StubCredentials()
     fake_drive = FakeDrive(fake_creds)
     fake_sheets = FakeSheets()
+    meta_rows = [["meta"]]
 
     # Patch load_credentials to avoid file I/O
     monkeypatch.setattr("quizen.runner.load_credentials", StubTokenLoader(fake_creds))
+    monkeypatch.setattr("quizen.runner.build_meta_sheet_rows", lambda *args, **kwargs: meta_rows)
 
     result = run_drive_to_sheet(
         credentials_path=Path("/tmp/creds.json"),
@@ -78,3 +85,26 @@ def test_run_drive_to_sheet_uses_clients_and_returns_result(monkeypatch):
     assert fake_drive.copy_calls[0][1] == "dest-789"
     assert fake_sheets.writes[0][0] == "new-sheet"
     assert fake_sheets.writes[0][2] == "Sheet1"
+    assert fake_sheets.meta_writes[0] == ("new-sheet", "quizen_meta", meta_rows)
+
+
+def test_run_drive_to_sheet_can_skip_meta_sheet(monkeypatch):
+    fake_creds = StubCredentials()
+    fake_drive = FakeDrive(fake_creds)
+    fake_sheets = FakeSheets()
+
+    # Patch load_credentials to avoid file I/O
+    monkeypatch.setattr("quizen.runner.load_credentials", StubTokenLoader(fake_creds))
+
+    run_drive_to_sheet(
+        credentials_path=Path("/tmp/creds.json"),
+        srt_folder_id="folder-xyz",
+        template_sheet_id="template-123",
+        copy_name="Copy",
+        destination_folder_id="dest-789",
+        drive_client=fake_drive,
+        sheets_client=fake_sheets,
+        write_meta_sheet=False,
+    )
+
+    assert fake_sheets.meta_writes == []
