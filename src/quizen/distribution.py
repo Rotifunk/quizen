@@ -37,7 +37,10 @@ def rebalance_questions(questions: List[Question], parts: List[Part]) -> List[Qu
     for part in parts:
         needed = target[part.part_name] - len(per_part[part.part_name])
         if needed > 0:
-            per_part[part.part_name].extend(overflow[:needed])
+            reassigned = overflow[:needed]
+            for q in reassigned:
+                q.part_name = part.part_name
+            per_part[part.part_name].extend(reassigned)
             overflow = overflow[needed:]
 
     balanced: List[Question] = []
