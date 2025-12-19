@@ -9,6 +9,7 @@ from .models import Lecture
 from .parsing import parse_filename
 from .pipeline import PipelineContext, build_default_runner
 from .questions import QuestionGenerationOptions
+from .reporting import build_meta_sheet_rows
 
 
 def build_lectures_from_drive(drive: DriveClient, folder_id: str) -> Tuple[List[Lecture], List[str]]:
@@ -42,6 +43,8 @@ def run_drive_to_sheet(
     drive_client: Optional[DriveClient] = None,
     sheets_client: Optional[SheetsClient] = None,
     sheet_name: str = "Sheet1",
+    write_meta_sheet: bool = True,
+    meta_sheet_name: str = "quizen_meta",
 ) -> Dict:
     """End-to-end helper: Drive SRT ingest → pipeline → Sheets export."""
 
@@ -75,6 +78,10 @@ def run_drive_to_sheet(
         drive_client=drive,
     )
     sheets.write_export_rows(new_sheet_id, ctx.export_rows, sheet_name=sheet_name)
+
+    if write_meta_sheet:
+        meta_rows = build_meta_sheet_rows(ctx.parts, ctx.questions)
+        sheets.append_meta_sheet(new_sheet_id, sheet_name=meta_sheet_name, rows=meta_rows)
 
     return {
         "sheet_id": new_sheet_id,
