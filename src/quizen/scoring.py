@@ -25,10 +25,12 @@ def _build_rubric_prompt(questions: Sequence[Question]) -> str:
         entries.append(
             f"[{idx}] {q.part_name}\n문항: {q.question_text}\n해설: {q.explanation_text}\n선지/정답: {options} / {q.answer_code}"
         )
-    rubric = (
-        "당신은 교육용 문항을 평가하는 심사위원입니다.\n"
-        "각 문항을 0~100 사이 점수로 평가하고, 문제 유형이나 표현상의 이슈 태그, 개선 문장을 제시하세요.\n"
-        "응답은 JSON으로 반환하세요."
+    rubric = "".join(
+        [
+            "당신은 교육용 문항을 평가하는 심사위원입니다.\n",
+            "각 문항을 0~100 사이 점수로 평가하고, 문제 유형이나 표현상의 이슈 태그, 개선 문장을 제시하세요.\n",
+            "응답은 JSON으로 반환하세요.",
+        ]
     )
     return f"{rubric}\n\n" + "\n\n".join(entries)
 

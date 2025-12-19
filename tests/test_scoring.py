@@ -106,3 +106,15 @@ def test_score_questions_flags_threshold_breaches():
 
     assert THRESHOLD_FLAG in questions[0].style_violation_flags
     assert "off_topic" in questions[0].style_violation_flags
+
+
+def test_rubric_prompt_is_human_readable():
+    payload = {"scores": [{"total_score": 90}]}
+    llm = _FakeLLMClient(payload=payload)
+
+    score_questions([_question()], llm_client=llm)
+
+    prompt = llm.calls[0]["prompt"]
+    assert prompt.startswith("당신은 교육용 문항을 평가하는 심사위원입니다.")
+    assert "문항: 무엇이 핵심인가요?" in prompt
+    assert "응답은 JSON으로 반환하세요." in prompt
