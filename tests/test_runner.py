@@ -86,6 +86,8 @@ def test_run_drive_to_sheet_uses_clients_and_returns_result(monkeypatch):
     assert fake_sheets.writes[0][0] == "new-sheet"
     assert fake_sheets.writes[0][2] == "Sheet1"
     assert fake_sheets.meta_writes[0] == ("new-sheet", "quizen_meta", meta_rows)
+    assert result["call_results"]
+    assert result["meta_report"]["part_score_distribution"]
 
 
 def test_run_drive_to_sheet_can_skip_meta_sheet(monkeypatch):
