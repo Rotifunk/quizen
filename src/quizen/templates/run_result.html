@@ -6,13 +6,31 @@
     <style>
         body { font-family: Arial, sans-serif; margin: 24px; }
         .meta { margin-top: 12px; padding: 12px; border: 1px solid #ddd; background: #fafafa; }
+        .progress { height: 12px; background: #eee; border-radius: 6px; overflow: hidden; margin: 6px 0; }
+        .progress span { display: block; height: 12px; background: #4caf50; }
         ul { line-height: 1.4; }
+        .warnings { color: #b30000; }
     </style>
 </head>
 <body>
 <h1>러너 실행 완료</h1>
 <p>run_id <strong>{{ run_id }}</strong>가 생성되었습니다. 총 {{ question_count }} 문항을 작성했습니다.</p>
 <div class="meta">
+    <h3>실행 상태</h3>
+    <p>상태: <strong>{{ state.status }}</strong> · 진행률: {{ (state.progress * 100)|round(0) }}%</p>
+    <div class="progress"><span style="width: {{ state.progress * 100 }}%"></span></div>
+    <div>
+        <strong>경고</strong>
+        {% if state.warnings %}
+            <ul class="warnings">
+                {% for warning in state.warnings %}
+                    <li>{{ warning }}</li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>표시할 경고가 없습니다.</p>
+        {% endif %}
+    </div>
     <h3>파이프라인 이벤트</h3>
     <ul>
         {% for event in events %}

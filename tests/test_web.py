@@ -1,3 +1,5 @@
+import json
+
 from fastapi.testclient import TestClient
 
 from quizen.web import create_app
@@ -18,12 +20,75 @@ def test_create_app_runs_pipeline_and_persists(tmp_path):
     assert response.status_code == 200
     run_id = response.json()["run_id"]
     assert response.json()["question_count"] == 2
+    assert response.json()["status"] == "completed"
+    assert response.json()["progress"] == 1
 
     detail = client.get(f"/runs/{run_id}")
     assert detail.status_code == 200
     body = detail.json()
     assert body["questions"]
     assert body["events"][0]["event"] == "run_started"
+    assert body["state"]["status"] == "completed"
+
+
+def test_runs_endpoint_persists_full_payload(tmp_path):
+    client = TestClient(create_app(storage_dir=tmp_path))
+
+    payload = {
+        "lectures": [
+            {"order": "001", "id": "L1", "title": "Intro"},
+            {"order": "002", "id": "L2", "title": "Deep dive"},
+        ],
+        "total_questions": 3,
+        "difficulty": 4,
+        "include_mcq": True,
+        "include_ox": True,
+    }
+
+    response = client.post("/runs", json=payload)
+    assert response.status_code == 200
+    run_id = response.json()["run_id"]
+
+    stored = json.loads((tmp_path / f"{run_id}.json").read_text())
+    assert stored["request"]["lectures"][0]["title"] == "Intro"
+    assert len(stored["export_rows"]) == payload["total_questions"]
+    assert stored["events"][-1]["event"] == "export_ready"
+
+
+def test_form_endpoint_runs_pipeline_and_stores_drive_settings(tmp_path):
+    client = TestClient(create_app(storage_dir=tmp_path))
+    before = {p.name for p in tmp_path.glob("*.json")}
+
+    lectures_json = json.dumps([
+        {"order": "001", "id": "L1", "title": "Intro"},
+        {"order": "002", "id": "L2", "title": "Outro"},
+    ])
+    response = client.post(
+        "/runs/form",
+        data={
+            "drive_folder_id": "drive-123",
+            "template_sheet_id": "tmpl-123",
+            "copy_name": "Integration Copy",
+            "destination_folder_id": "dest-123",
+            "lectures_json": lectures_json,
+            "total_questions": 2,
+            "difficulty": 2,
+            "include_mcq": "on",
+            "include_ox": "on",
+        },
+    )
+
+    assert response.status_code == 200
+
+    after = {p.name for p in tmp_path.glob("*.json")}
+    new_files = after - before
+    assert len(new_files) == 1
+    run_file = tmp_path / new_files.pop()
+
+    payload = json.loads(run_file.read_text())
+    assert payload["request"]["drive"]["template_sheet_id"] == "tmpl-123"
+    assert payload["request"]["drive"]["copy_name"] == "Integration Copy"
+    assert len(payload["export_rows"]) == 2
 
 
 def test_health_endpoint():
@@ -50,6 +115,7 @@ def test_home_template_and_filters(tmp_path):
 
     filtered = client.get(f"/runs/{run}/questions", params={"min_score": 79}).json()
     assert filtered["count"] == 3
+    assert filtered["state"]["status"] == "completed"
 
     style_only = client.get(f"/runs/{run}/questions", params={"style_only": True}).json()
     assert style_only["count"] <= filtered["count"]
@@ -79,3 +145,40 @@ def test_question_patch_validates(tmp_path):
     )
     assert valid.status_code == 200
     assert valid.json()["question"]["answer_code"] == 2
+    assert valid.json()["state"]["status"] == "completed"
+
+
+def test_revalidation_endpoint_updates_state(tmp_path):
+    client = TestClient(create_app(storage_dir=tmp_path))
+    payload = {
+        "lectures": [
+            {"order": "001", "id": "L1", "title": "Intro"},
+            {"order": "002", "id": "L2", "title": "Part2"},
+        ],
+        "total_questions": 2,
+        "difficulty": 3,
+        "include_mcq": True,
+        "include_ox": False,
+    }
+    run_resp = client.post("/runs", json=payload)
+    run_id = run_resp.json()["run_id"]
+
+    revalidate = client.post(f"/runs/{run_id}/revalidate")
+    assert revalidate.status_code == 200
+    assert revalidate.json()["status"] == "completed"
+
+    detail = client.get(f"/runs/{run_id}")
+    events = [e["event"] for e in detail.json()["events"]]
+    assert "revalidation_completed" in events
+
+
+def test_token_auth_dependency(monkeypatch, tmp_path):
+    monkeypatch.setenv("QUIZEN_AUTH_TOKEN", "secret")
+    app = create_app(storage_dir=tmp_path)
+    client = TestClient(app)
+
+    unauth = client.get("/")
+    assert unauth.status_code == 401
+
+    authed = client.get("/", headers={"X-Auth-Token": "secret"})
+    assert authed.status_code == 200

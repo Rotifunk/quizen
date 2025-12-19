@@ -11,6 +11,11 @@
         .filters { margin-bottom: 16px; padding: 12px; border: 1px solid #ddd; }
         .pill { display: inline-block; padding: 2px 6px; background: #eef; border-radius: 4px; margin-right: 4px; font-size: 12px; }
         .low-score { color: #b30000; font-weight: bold; }
+        .status { margin: 12px 0; padding: 12px; border: 1px solid #ddd; background: #fafafa; }
+        .progress { height: 10px; background: #eee; border-radius: 5px; overflow: hidden; margin: 4px 0; }
+        .progress span { display: block; height: 10px; background: #4caf50; }
+        .warnings { color: #b30000; }
+        .toolbar { margin: 8px 0; display: flex; gap: 8px; align-items: center; }
     </style>
 </head>
 <body>
@@ -40,6 +45,32 @@
         <button type="submit">필터 적용</button>
     </form>
     <p>정답/옵션 편집 규칙을 준수해야 저장됩니다. 유형1: 보기 4개 &amp; 정답 1~4, 유형3: 보기 없음 &amp; 정답 1(O)/2(X).</p>
+</div>
+<div class="status">
+    <div class="toolbar">
+        <div><strong>상태:</strong> {{ state.status }} · 진행률: {{ (state.progress * 100)|round(0) }}%</div>
+        <div class="progress" style="flex: 1;"><span style="width: {{ state.progress * 100 }}%"></span></div>
+        <button id="revalidate-btn" type="button">재검증/재분배 트리거</button>
+        <span id="revalidate-result"></span>
+    </div>
+    <div>
+        <strong>경고</strong>
+        {% if state.warnings %}
+            <ul class="warnings">
+                {% for warning in state.warnings %}<li>{{ warning }}</li>{% endfor %}
+            </ul>
+        {% else %}
+            <p>표시할 경고가 없습니다.</p>
+        {% endif %}
+    </div>
+    <div>
+        <strong>최근 이벤트</strong>
+        <ul>
+            {% for event in events %}
+                <li>{{ event.event }} {{ event | tojson }}</li>
+            {% endfor %}
+        </ul>
+    </div>
 </div>
 <table>
     <thead>
@@ -85,5 +116,24 @@
     </tbody>
 </table>
 <p><a href="/runs/{{ run_id }}/report">타당도 리포트 보기</a></p>
+<script>
+    const trigger = document.getElementById('revalidate-btn');
+    const result = document.getElementById('revalidate-result');
+    trigger.addEventListener('click', async () => {
+        result.textContent = '요청 중...';
+        try {
+            const resp = await fetch('/runs/{{ run_id }}/revalidate', {method: 'POST'});
+            if (!resp.ok) {
+                const body = await resp.json();
+                result.textContent = `실패: ${body.detail || resp.status}`;
+                return;
+            }
+            const body = await resp.json();
+            result.textContent = `완료 - 상태 ${body.status}, 질문 ${body.question_count}개`;
+        } catch (err) {
+            result.textContent = '네트워크 오류';
+        }
+    });
+</script>
 </body>
 </html>
