@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import io
 import json
+import logging
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence
@@ -11,9 +13,13 @@ from google.oauth2 import credentials as user_credentials
 from google.oauth2 import service_account
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaIoBaseDownload
 
 from .models import ExportRow
+
+
+logger = logging.getLogger(__name__)
 
 
 DRIVE_SCOPES = [
@@ -64,6 +70,28 @@ class DriveFile:
     mime_type: str
 
 
+class DriveApiError(Exception):
+    """Raised when Drive API calls fail."""
+
+
+class SheetNotFoundError(Exception):
+    """Raised when a target sheet tab is missing."""
+
+
+class SheetHeaderMissingError(Exception):
+    """Raised when the expected header row is empty."""
+
+
+@dataclass
+class WriteResult:
+    """Metadata about a Sheets write operation."""
+
+    updated_range: Optional[str]
+    success_count: int
+    failure_count: int
+    raw_response: Dict
+
+
 class DriveClient:
     """Drive API wrapper for listing and copying files."""
 
@@ -75,18 +103,32 @@ class DriveClient:
         fields = "nextPageToken, files(id, name, mimeType)"
         files: List[DriveFile] = []
         page_token: Optional[str] = None
-        while True:
-            resp = (
-                self.service.files()
-                .list(q=query, pageSize=100, pageToken=page_token, fields=fields)
-                .execute()
-            )
-            for item in resp.get("files", []):
-                if item.get("name", "").lower().endswith(".srt"):
-                    files.append(DriveFile(id=item["id"], name=item["name"], mime_type=item.get("mimeType", "")))
-            page_token = resp.get("nextPageToken")
-            if not page_token:
-                break
+        page_count = 0
+        try:
+            while True:
+                resp = (
+                    self.service.files()
+                    .list(q=query, pageSize=100, pageToken=page_token, fields=fields)
+                    .execute()
+                )
+                page_count += 1
+                page_files = resp.get("files", [])
+                if resp.get("nextPageToken") and not page_files:
+                    logger.warning("Drive pagination returned a continuation token without files for folder %s", folder_id)
+                if page_count > 5 and resp.get("nextPageToken"):
+                    logger.warning(
+                        "Drive listing for folder %s already spanned %d pages; continuing to fetch remaining pages.",
+                        folder_id,
+                        page_count,
+                    )
+                for item in page_files:
+                    if item.get("name", "").lower().endswith(".srt"):
+                        files.append(DriveFile(id=item["id"], name=item["name"], mime_type=item.get("mimeType", "")))
+                page_token = resp.get("nextPageToken")
+                if not page_token:
+                    break
+        except HttpError as exc:  # pragma: no cover - defensive
+            raise DriveApiError(f"Drive listing failed for folder {folder_id}") from exc
         return files
 
     def copy_file(self, file_id: str, destination_folder_id: str, new_name: str) -> DriveFile:
@@ -111,21 +153,68 @@ class SheetsClient:
     def __init__(self, credentials=None, service=None):
         self.service = service or build("sheets", "v4", credentials=credentials)
 
+    @staticmethod
+    def _execute_with_retry(request, retries: int = 3, base_delay: float = 1.0):
+        attempt = 0
+        while True:
+            try:
+                return request.execute()
+            except HttpError as exc:
+                status = getattr(getattr(exc, "resp", None), "status", None)
+                if status in (429, 500, 502, 503, 504) and attempt < retries - 1:
+                    delay = base_delay * (2**attempt)
+                    logger.warning(
+                        "Sheets API returned %s; retrying in %.1fs (attempt %d/%d)",
+                        status,
+                        delay,
+                        attempt + 1,
+                        retries,
+                    )
+                    time.sleep(delay)
+                    attempt += 1
+                    continue
+                raise
+
     def write_export_rows(
         self,
         spreadsheet_id: str,
         rows: Iterable[ExportRow],
         start_row: int = 3,
         sheet_name: str = "Sheet1",
-    ) -> Dict:
+    ) -> WriteResult:
         values: List[List[str | int]] = []
         for row in rows:
             values.append(row.sheet_cells)
 
-        end_row = start_row + len(values) - 1 if values else start_row
+        sheet_metadata = (
+            self.service.spreadsheets()
+            .get(spreadsheetId=spreadsheet_id, fields="sheets.properties.title")
+            .execute()
+        )
+        sheet_titles = {sheet["properties"]["title"] for sheet in sheet_metadata.get("sheets", [])}
+        if sheet_name not in sheet_titles:
+            raise SheetNotFoundError(f"Sheet '{sheet_name}' does not exist in spreadsheet {spreadsheet_id}")
+
+        header_row_index = max(1, start_row - 1)
+        header_range = f"{sheet_name}!A{header_row_index}:I{header_row_index}"
+        header_resp = (
+            self.service.spreadsheets()
+            .values()
+            .get(spreadsheetId=spreadsheet_id, range=header_range)
+            .execute()
+        )
+        if not header_resp.get("values"):
+            raise SheetHeaderMissingError(
+                f"Expected header row at {header_range} but no values were returned"
+            )
+
+        if not values:
+            return WriteResult(updated_range=None, success_count=0, failure_count=0, raw_response={})
+
+        end_row = start_row + len(values) - 1
         target_range = f"{sheet_name}!A{start_row}:I{end_row}"
         body = {"values": values}
-        return (
+        response = self._execute_with_retry(
             self.service.spreadsheets()
             .values()
             .update(
@@ -134,7 +223,16 @@ class SheetsClient:
                 valueInputOption="USER_ENTERED",
                 body=body,
             )
-            .execute()
+        )
+
+        updated_rows = int(response.get("updatedRows", len(values))) if values else 0
+        success_count = min(updated_rows, len(values))
+        failure_count = max(0, len(values) - success_count)
+        return WriteResult(
+            updated_range=response.get("updatedRange"),
+            success_count=success_count,
+            failure_count=failure_count,
+            raw_response=response,
         )
 
     def append_meta_sheet(
