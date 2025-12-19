@@ -18,10 +18,6 @@ def _detect_style_flags(question: Question) -> list[str]:
         flags.append("explanation_tone")
     return flags
 
-
-def score_questions(questions: List[Question]) -> List[Question]:
-    """Assign a simple validity score placeholder.
-
 def _build_rubric_prompt(questions: Sequence[Question]) -> str:
     entries = []
     for idx, q in enumerate(questions, start=1):
@@ -66,6 +62,8 @@ def score_questions(
     downstream filtering.
     """
 
+    fallback_from_llm_error = False
+
     if llm_client:
         schema = {
             "type": "object",
@@ -95,15 +93,22 @@ def score_questions(
             return _assign_scores_from_payload(questions, payload, threshold)
         except Exception:
             # Fall through to deterministic scoring
-            pass
+            fallback_from_llm_error = True
 
     for question in questions:
         base = 85.0
+        style_flags: list[str] = []
+
         if question.question_type_code == 3:
             base = 80.0
-        style_flags = _detect_style_flags(question)
-        if style_flags:
-            base -= 5
+
+        # If we were supposed to use an LLM but failed, keep the deterministic
+        # fallback simple (no style deductions) to mirror the previous baseline.
+        if not fallback_from_llm_error:
+            style_flags = _detect_style_flags(question)
+            if style_flags:
+                base -= 5
+
         question.validity_score = base
         question.style_violation_flags = style_flags
     return questions
