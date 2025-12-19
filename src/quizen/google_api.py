@@ -164,11 +164,16 @@ def prepare_export(
     copy_name: str,
     token_path: Optional[Path] = None,
     allow_browser_flow: bool = False,
+    credentials=None,
+    drive_client: DriveClient | None = None,
 ):
     """Copy the template sheet into the target Drive folder and return the new sheet ID."""
 
-    creds = load_credentials(credentials_path, token_path=token_path, allow_browser_flow=allow_browser_flow)
-    drive = DriveClient(credentials=creds)
+    if credentials is None and not credentials_path:
+        raise ValueError("credentials_path is required when credentials are not supplied")
+
+    creds = credentials or load_credentials(credentials_path, token_path=token_path, allow_browser_flow=allow_browser_flow)
+    drive = drive_client or DriveClient(credentials=creds)
     copy = drive.copy_file(template_sheet_id, destination_folder_id, copy_name)
     return copy.id
 

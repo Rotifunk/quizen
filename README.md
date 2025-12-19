@@ -24,6 +24,7 @@ PRD v0.5 기반으로 학습용 문항을 자동 생성·검증·배포하는 �
    - `quizen.llm`: Gemini Flash 호출을 위한 간단한 HTTP 클라이언트 스텁
    - `quizen.storage`: JSON 파일 기반 임시 저장소
    - `quizen.google_api`: Google Drive/Sheets 인증, 템플릿 복제, Export 쓰기 유틸리티
+   - `quizen.runner`: Drive → Sheets 엔드투엔드 실행 헬퍼
 3. 테스트 실행
    ```bash
    pip install -e .[dev]
@@ -82,4 +83,24 @@ PRD v0.5 기반으로 학습용 문항을 자동 생성·검증·배포하는 �
    ]
    client.write_export_rows(sheet_id, rows)
    PY
+   ```
+
+6. Drive → Sheets 파이프라인 한 번에 실행하기
+   `run_drive_to_sheet`로 Drive 폴더의 SRT 목록을 읽어 기본 파이프라인을 수행하고, 템플릿을 복제해 결과를 적재할 수 있습니다.
+
+   ```python
+   from pathlib import Path
+
+   from quizen.runner import run_drive_to_sheet
+
+   result = run_drive_to_sheet(
+       credentials_path=Path("./credential.json"),
+       srt_folder_id="<SRT_폴더_ID>",
+       template_sheet_id="<템플릿_시트_ID>",
+       copy_name="퀴즌 결과 시트",
+       destination_folder_id="<출력_폴더_ID>",  # 생략 시 srt_folder_id 재사용
+   )
+
+   print("새 시트 ID:", result["sheet_id"])
+   print("생성된 문항 수:", result["question_count"])
    ```

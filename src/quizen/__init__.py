@@ -9,6 +9,7 @@ from .parts import (  # noqa: F401
 )
 from .pipeline import PipelineRunner, build_default_runner  # noqa: F401
 from .questions import QuestionGenerationOptions, generate_stub_questions  # noqa: F401
+from .runner import build_lectures_from_drive, run_drive_to_sheet  # noqa: F401
 
 __all__ = [
     "PipelineRunner",
@@ -24,4 +25,6 @@ __all__ = [
     "SheetsClient",
     "load_credentials",
     "prepare_export",
+    "build_lectures_from_drive",
+    "run_drive_to_sheet",
 ]
