@@ -112,6 +112,12 @@ PRD v0.5 기반으로 학습용 문항을 자동 생성·검증·배포하는 �
    print("생성된 문항 수:", result["question_count"])
    ```
 
+   - CI나 로컬에서 실제 Google API 통합 테스트를 돌리려면 다음 환경 변수를 설정합니다. 없으면 테스트는 모의 클라이언트 경로로 대체되거나 자동으로 스킵됩니다.
+     - `QUIZEN_GOOGLE_CREDENTIALS_PATH`: 서비스 계정 JSON 경로
+     - `QUIZEN_SRT_FOLDER_ID`: SRT 파일이 있는 Drive 폴더 ID
+     - `QUIZEN_TEMPLATE_SHEET_ID`: 복제할 템플릿 Sheet ID
+     - `QUIZEN_DESTINATION_FOLDER_ID` (선택): 복제본을 둘 폴더 ID. 없으면 `QUIZEN_SRT_FOLDER_ID` 재사용
+
 7. FastAPI 서버로 파이프라인 실행하기
 
    ```bash

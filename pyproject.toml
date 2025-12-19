@@ -30,3 +30,6 @@ where = ["src"]
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+markers = [
+    "integration: tests that call external Google APIs when credentials are provided",
+]
