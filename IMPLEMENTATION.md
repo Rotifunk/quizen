@@ -12,12 +12,14 @@
   - **Drive/Sheets 어댑터**: 상위 폴더 스캔, 코스 선택, 템플릿 복제/쓰기/검증.
   - **파이프라인 오케스트레이터**: `run_started → part_classification → summarization → question_generation → validity_scoring → export` 단계별 상태 관리 및 로깅.
 - **스토리지**: 작업 세션/코스별 중간 산출물 저장소(예: sqlite/json). 필수 필드: 강의 목록, PART 결과, PART 요약, 문항 목록, 타당도 점수.
+- **웹/API 레이어**: FastAPI 기반 `/health`, `/runs`(실행), `/runs/{id}`(조회) 엔드포인트. 실행 결과는 JSON 스토리지에 run_id별로 저장.
 
 ## 2. 데이터 모델
 - **Lecture**: `order`, `id`, `title`, `part_code`(분류 결과), `file_path`.
 - **Part**: `part_code`, `part_title`, `part_name`, `lecture_ids[]`.
 - **Question**(내부 스키마 §9.2 준수): `difficulty_code`, `question_type_code`, `question_text`, `explanation_text`, `answer_code`, `options[4]`, `part_name`, `validity_score`, `style_violation_flags`.
 - **Export Row**: 템플릿 컬럼 A~I 대응(§10.2). 빈 보기 처리(OX형 시 F~I 공란).
+- **Meta Sheet(Row)**: `quizen_meta` 탭에 PART 목록 및 문항-파트 맵핑을 추가하는 보조 데이터.
 
 ## 3. 폴더/파일 처리
 - 상위 폴더 ID에서 하위 코스 폴더 리스트 조회 → `{코스ID} {코스명}` 패턴 유지.

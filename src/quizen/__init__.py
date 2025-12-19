@@ -9,7 +9,9 @@ from .parts import (  # noqa: F401
 )
 from .pipeline import PipelineRunner, build_default_runner  # noqa: F401
 from .questions import QuestionGenerationOptions, generate_stub_questions  # noqa: F401
+from .reporting import build_meta_sheet_rows, persist_run  # noqa: F401
 from .runner import build_lectures_from_drive, run_drive_to_sheet  # noqa: F401
+from .web import create_app  # noqa: F401
 
 __all__ = [
     "PipelineRunner",
@@ -21,10 +23,13 @@ __all__ = [
     "build_default_llm_client",
     "QuestionGenerationOptions",
     "generate_stub_questions",
+    "build_meta_sheet_rows",
+    "persist_run",
     "DriveClient",
     "SheetsClient",
     "load_credentials",
     "prepare_export",
     "build_lectures_from_drive",
     "run_drive_to_sheet",
+    "create_app",
 ]

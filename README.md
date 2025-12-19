@@ -23,8 +23,10 @@ PRD v0.5 기반으로 학습용 문항을 자동 생성·검증·배포하는 �
    - `quizen.validation`: PRD 제약에 맞는 문항 및 Export 검증
    - `quizen.llm`: Gemini Flash 호출을 위한 간단한 HTTP 클라이언트 스텁
    - `quizen.storage`: JSON 파일 기반 임시 저장소
+   - `quizen.reporting`: 메타 시트 행 생성과 러너 결과 저장 헬퍼
    - `quizen.google_api`: Google Drive/Sheets 인증, 템플릿 복제, Export 쓰기 유틸리티
    - `quizen.runner`: Drive → Sheets 엔드투엔드 실행 헬퍼
+   - `quizen.web`: FastAPI 기반 REST 엔드포인트(헬스체크, 러너 실행/조회)
 3. 테스트 실행
    ```bash
    pip install -e .[dev]
@@ -104,3 +106,12 @@ PRD v0.5 기반으로 학습용 문항을 자동 생성·검증·배포하는 �
    print("새 시트 ID:", result["sheet_id"])
    print("생성된 문항 수:", result["question_count"])
    ```
+
+7. FastAPI 서버로 파이프라인 실행하기
+
+   ```bash
+   uvicorn quizen.web:create_app --factory --reload
+   ```
+
+   - POST `/runs` 에 `lectures` 배열과 출제 옵션을 보내면 파이프라인이 실행되고 결과가 `runs/` 디렉터리에 저장됩니다.
+   - GET `/runs/{run_id}` 로 저장된 이벤트/문항/Export 행을 조회할 수 있습니다.

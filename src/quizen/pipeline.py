@@ -15,12 +15,16 @@ from .validation import ValidationError, validate_export_rows, validate_question
 
 @dataclass
 class PipelineEvents:
-    """Simple in-memory event log collector."""
+    """Simple in-memory event log collector with optional sinks."""
 
     events: List[Dict] = field(default_factory=list)
+    sinks: List[Callable[[Dict], None]] = field(default_factory=list)
 
     def push(self, name: str, **payload):
-        self.events.append({"event": name, **payload})
+        event_payload = {"event": name, **payload}
+        self.events.append(event_payload)
+        for sink in self.sinks:
+            sink(event_payload)
 
 
 @dataclass
@@ -33,6 +37,15 @@ class PipelineContext:
     export_rows: List[ExportRow] = field(default_factory=list)
     events: PipelineEvents = field(default_factory=PipelineEvents)
 
+    def to_dict(self) -> Dict:
+        return {
+            "parts": [p.model_dump() for p in self.parts],
+            "summaries": [s.model_dump() for s in self.summaries],
+            "questions": [q.model_dump() for q in self.questions],
+            "export_rows": [r.model_dump() for r in self.export_rows],
+            "events": list(self.events.events),
+        }
+
 
 class PipelineRunner:
     """Coordinates PART classification → summary → question generation → export rows."""
@@ -43,14 +56,16 @@ class PipelineRunner:
         summarize_parts: Callable[[List[Part]], List[PartSummary]],
         generate_questions: Callable[[List[PartSummary]], List[Question]],
         map_export_rows: Callable[[List[Question]], List[ExportRow]],
+        event_sinks: Optional[List[Callable[[Dict], None]]] = None,
     ):
         self.classify_parts = classify_parts
         self.summarize_parts = summarize_parts
         self.generate_questions = generate_questions
         self.map_export_rows = map_export_rows
+        self.event_sinks = event_sinks or []
 
     def run(self) -> PipelineContext:
-        ctx = PipelineContext()
+        ctx = PipelineContext(events=PipelineEvents(sinks=self.event_sinks))
         ctx.events.push("run_started")
 
         parts_result = self.classify_parts()
