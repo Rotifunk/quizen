@@ -1,6 +1,6 @@
-from quizen import build_default_runner
 from quizen.models import Lecture
 from quizen.parts import PartClassifier
+from quizen.pipeline import build_default_runner
 from quizen.questions import QuestionGenerationOptions
 
 
