@@ -135,7 +135,7 @@ def build_default_runner(
 
     def _generate(summaries: List[PartSummary]):
         questions = generate_questions(summaries, q_options, llm_client=llm_client)
-        return score_questions(questions)
+        return score_questions(questions, llm_client=llm_client)
 
     def _export(questions: List[Question]):
         rows = default_export_mapper(questions)
