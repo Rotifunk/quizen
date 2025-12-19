@@ -6,6 +6,18 @@ from typing import List
 from .models import Question
 
 
+def _detect_style_flags(question: Question) -> list[str]:
+    flags: list[str] = []
+    polite_endings = ("습니다", "합니다", "하십시오", "합니까", "입니까")
+    if question.question_type_code == 1 and not question.question_text.endswith("시오."):
+        flags.append("mcq_prompt_style")
+    if question.question_type_code == 3 and not question.question_text.endswith("다."):
+        flags.append("ox_tone")
+    if question.explanation_text and not question.explanation_text.rstrip().endswith(polite_endings):
+        flags.append("explanation_tone")
+    return flags
+
+
 def score_questions(questions: List[Question]) -> List[Question]:
     """Assign a simple validity score placeholder.
 
@@ -18,6 +30,9 @@ def score_questions(questions: List[Question]) -> List[Question]:
         base = 85.0
         if question.question_type_code == 3:
             base = 80.0
+        style_flags = _detect_style_flags(question)
+        if style_flags:
+            base -= 5
         question.validity_score = base
-        question.style_violation_flags = []
+        question.style_violation_flags = style_flags
     return questions

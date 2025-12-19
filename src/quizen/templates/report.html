@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>quizen | 이벤트/타당도 리포트</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 24px; }
+        table { border-collapse: collapse; width: 100%; margin-bottom: 16px; }
+        th, td { border: 1px solid #ddd; padding: 8px; }
+        th { background: #f5f5f5; }
+        .warning { color: #b30000; font-weight: bold; }
+        .pill { display: inline-block; padding: 2px 6px; background: #eef; border-radius: 4px; margin-right: 4px; font-size: 12px; }
+    </style>
+</head>
+<body>
+<h1>이벤트/타당도 리포트 - run {{ run_id }}</h1>
+<section>
+    <h2>이벤트 타임라인</h2>
+    <table>
+        <thead><tr><th>순서</th><th>이벤트</th><th>세부</th></tr></thead>
+        <tbody>
+        {% for event in events %}
+            <tr>
+                <td>{{ loop.index }}</td>
+                <td>{{ event.event }}</td>
+                <td>{{ event | tojson }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</section>
+<section>
+    <h2>타당도 개요</h2>
+    <p>평균 점수: {{ avg_score or '-' }}</p>
+    <p>저점수(<70) 문항: {{ low_scores|length }} · 스타일 플래그: {{ style_flags|length }}</p>
+</section>
+<section>
+    <h3>저점수 문항</h3>
+    <table>
+        <thead><tr><th>PART</th><th>문항</th><th>점수</th></tr></thead>
+        <tbody>
+        {% for q in low_scores %}
+            <tr class="warning">
+                <td>{{ q.part_name }}</td>
+                <td>{{ q.question_text }}</td>
+                <td>{{ q.validity_score }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</section>
+<section>
+    <h3>스타일 위반</h3>
+    <table>
+        <thead><tr><th>PART</th><th>문항</th><th>플래그</th></tr></thead>
+        <tbody>
+        {% for q in style_flags %}
+            <tr>
+                <td>{{ q.part_name }}</td>
+                <td>{{ q.question_text }}</td>
+                <td>{% for flag in q.style_violation_flags %}<span class="pill">{{ flag }}</span>{% endfor %}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</section>
+<p><a href="/runs/{{ run_id }}/review">Review 테이블로 돌아가기</a></p>
+</body>
+</html>

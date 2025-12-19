@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>quizen | 실행 완료</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 24px; }
+        .meta { margin-top: 12px; padding: 12px; border: 1px solid #ddd; background: #fafafa; }
+        ul { line-height: 1.4; }
+    </style>
+</head>
+<body>
+<h1>러너 실행 완료</h1>
+<p>run_id <strong>{{ run_id }}</strong>가 생성되었습니다. 총 {{ question_count }} 문항을 작성했습니다.</p>
+<div class="meta">
+    <h3>파이프라인 이벤트</h3>
+    <ul>
+        {% for event in events %}
+            <li>{{ event.event }} {{ event | tojson }}</li>
+        {% endfor %}
+    </ul>
+</div>
+<p><a href="/runs/{{ run_id }}/review">Review 테이블로 이동</a> · <a href="/runs/{{ run_id }}/report">타당도 리포트 보기</a></p>
+</body>
+</html>

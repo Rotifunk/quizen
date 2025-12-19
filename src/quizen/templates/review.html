@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>quizen | Review</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 24px; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #ddd; padding: 8px; vertical-align: top; }
+        th { background: #f5f5f5; }
+        .filters { margin-bottom: 16px; padding: 12px; border: 1px solid #ddd; }
+        .pill { display: inline-block; padding: 2px 6px; background: #eef; border-radius: 4px; margin-right: 4px; font-size: 12px; }
+        .low-score { color: #b30000; font-weight: bold; }
+    </style>
+</head>
+<body>
+<h1>Review 테이블 - run {{ run_id }}</h1>
+<div class="filters">
+    <form method="get">
+        <label>PART
+            <select name="part">
+                <option value="">전체</option>
+                {% for p in parts %}
+                    <option value="{{ p }}" {% if filters.part == p %}selected{% endif %}>{{ p }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>유형
+            <select name="question_type">
+                <option value="">전체</option>
+                <option value="1" {% if filters.question_type == 1 %}selected{% endif %}>선다형</option>
+                <option value="3" {% if filters.question_type == 3 %}selected{% endif %}>OX</option>
+            </select>
+        </label>
+        <label>최소 타당도
+            <input type="number" step="1" name="min_score" value="{{ filters.min_score or '' }}"/>
+        </label>
+        <label><input type="checkbox" name="style_only" value="1" {% if filters.style_only %}checked{% endif %}/> 문체 위반만</label>
+        <label>검색어 <input type="text" name="search" value="{{ filters.search or '' }}" /></label>
+        <button type="submit">필터 적용</button>
+    </form>
+    <p>정답/옵션 편집 규칙을 준수해야 저장됩니다. 유형1: 보기 4개 &amp; 정답 1~4, 유형3: 보기 없음 &amp; 정답 1(O)/2(X).</p>
+</div>
+<table>
+    <thead>
+    <tr>
+        <th>#</th>
+        <th>PART</th>
+        <th>유형</th>
+        <th>난이도</th>
+        <th>타당도</th>
+        <th>문항</th>
+        <th>해설</th>
+        <th>정답/보기</th>
+        <th>스타일 플래그</th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for q in questions %}
+        <tr>
+            <td>{{ loop.index }}</td>
+            <td>{{ q.part_name }}</td>
+            <td>{{ '선다형' if q.question_type_code == 1 else 'OX' }}</td>
+            <td>{{ q.difficulty_code }}</td>
+            <td class="{% if q.validity_score and q.validity_score < 70 %}low-score{% endif %}">{{ q.validity_score or '-' }}</td>
+            <td>{{ q.question_text }}</td>
+            <td>{{ q.explanation_text }}</td>
+            <td>
+                <div>정답: {{ q.answer_code }}</div>
+                {% if q.options %}
+                    <ul>
+                        {% for opt in q.options %}<li>{{ opt }}</li>{% endfor %}
+                    </ul>
+                {% else %}
+                    <span class="pill">OX</span>
+                {% endif %}
+            </td>
+            <td>
+                {% if q.style_violation_flags %}
+                    {% for flag in q.style_violation_flags %}<span class="pill">{{ flag }}</span>{% endfor %}
+                {% else %}-{% endif %}
+            </td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+<p><a href="/runs/{{ run_id }}/report">타당도 리포트 보기</a></p>
+</body>
+</html>
