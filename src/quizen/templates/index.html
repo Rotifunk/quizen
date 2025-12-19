@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>quizen | 러너 설정</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 24px; }
+        form { border: 1px solid #ddd; padding: 16px; margin-bottom: 24px; }
+        label { display: block; margin-top: 8px; font-weight: bold; }
+        input[type=text], textarea, select, input[type=number] { width: 100%; padding: 6px; margin-top: 4px; }
+        .row { display: flex; gap: 16px; }
+        .row > div { flex: 1; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #ddd; padding: 8px; }
+        .hint { color: #666; font-size: 12px; }
+    </style>
+</head>
+<body>
+<h1>quizen 러너 실행</h1>
+<p>Drive/Sheets 설정과 출제 옵션을 입력한 뒤 실행하면 Review/Report 화면으로 이동할 수 있습니다.</p>
+<form method="post" action="/runs/form">
+    <h2>Drive · Sheets 설정</h2>
+    <label for="drive_folder_id">Drive 상위 폴더 ID</label>
+    <input type="text" id="drive_folder_id" name="drive_folder_id" placeholder="예: 123abc" />
+
+    <label for="template_sheet_id">템플릿 Sheet ID</label>
+    <input type="text" id="template_sheet_id" name="template_sheet_id" placeholder="예: 456def" />
+
+    <label for="copy_name">복제본 이름</label>
+    <input type="text" id="copy_name" name="copy_name" placeholder="코스명 + 날짜" />
+
+    <label for="destination_folder_id">복제 대상 폴더(선택)</label>
+    <input type="text" id="destination_folder_id" name="destination_folder_id" />
+
+    <h2>출제 옵션</h2>
+    <div class="row">
+        <div>
+            <label for="total_questions">문항 수 (5~50)</label>
+            <input type="number" id="total_questions" name="total_questions" min="5" max="50" value="{{ defaults.total_questions }}" />
+        </div>
+        <div>
+            <label for="difficulty">난이도(1~5)</label>
+            <select id="difficulty" name="difficulty">
+                {% for d in [1,2,3,4,5] %}
+                    <option value="{{ d }}" {% if d == defaults.difficulty %}selected{% endif %}>{{ d }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+    <label><input type="checkbox" name="include_mcq" value="1" {% if defaults.include_mcq %}checked{% endif %}/> 선다형 포함</label>
+    <label><input type="checkbox" name="include_ox" value="1" {% if defaults.include_ox %}checked{% endif %}/> OX 포함</label>
+    <p class="hint">정답/옵션 편집 규칙: 유형1은 보기 4개와 정답코드 1~4, 유형3(OX)은 보기 없이 정답코드 1(O)/2(X)만 허용됩니다.</p>
+
+    <h2>강의 목록(JSON)</h2>
+    <p class="hint">Drive 스캔 결과를 그대로 붙여넣거나 샘플 데이터를 사용하세요.</p>
+    <textarea id="lectures_json" name="lectures_json" rows="6">[
+  {"order": "001", "id": "L1", "title": "PART.01 데이터 전처리"},
+  {"order": "002", "id": "L2", "title": "PART.02 모델 개요"}
+]</textarea>
+    <div style="margin-top: 12px;"><button type="submit">러너 실행</button></div>
+</form>
+</body>
+</html>
