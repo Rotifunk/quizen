@@ -7,9 +7,9 @@ from typing import Dict, List, Optional, Tuple
 from .google_api import DriveClient, SheetsClient, load_credentials, prepare_export
 from .models import Lecture
 from .parsing import parse_filename
-from .pipeline import PipelineContext, build_default_runner
+from .pipeline import CallResultCollector, PipelineContext, build_default_runner
 from .questions import QuestionGenerationOptions
-from .reporting import build_meta_sheet_rows
+from .reporting import build_meta_report, build_meta_sheet_rows
 
 
 def build_lectures_from_drive(drive: DriveClient, folder_id: str) -> Tuple[List[Lecture], List[str]]:
@@ -61,32 +61,87 @@ def run_drive_to_sheet(
     if creds is None:
         creds = getattr(drive, "credentials", None)
 
-    lectures, warnings = build_lectures_from_drive(drive, srt_folder_id)
+    call_logger = CallResultCollector()
 
-    runner = build_default_runner(lectures, llm_client=llm_client, question_options=question_options)
+    try:
+        lectures, warnings = build_lectures_from_drive(drive, srt_folder_id)
+        call_logger.log("drive", "list_srt_files", status="success")
+    except Exception as exc:  # pragma: no cover - propagated
+        call_logger.log(
+            "drive", "list_srt_files", status="error", error_code=exc.__class__.__name__, message=str(exc)
+        )
+        raise
+
+    runner = build_default_runner(
+        lectures,
+        llm_client=llm_client,
+        question_options=question_options,
+        call_logger=call_logger,
+    )
     ctx: PipelineContext = runner.run()
 
     # Copy template sheet into Drive and write results
-    new_sheet_id = prepare_export(
-        credentials_path=credentials_path if credentials_path else Path(""),
-        template_sheet_id=template_sheet_id,
-        destination_folder_id=destination_folder,
-        copy_name=copy_name,
-        token_path=token_path,
-        allow_browser_flow=allow_browser_flow,
-        credentials=creds,
-        drive_client=drive,
-    )
-    sheets.write_export_rows(new_sheet_id, ctx.export_rows, sheet_name=sheet_name)
+    try:
+        new_sheet_id = prepare_export(
+            credentials_path=credentials_path if credentials_path else Path(""),
+            template_sheet_id=template_sheet_id,
+            destination_folder_id=destination_folder,
+            copy_name=copy_name,
+            token_path=token_path,
+            allow_browser_flow=allow_browser_flow,
+            credentials=creds,
+            drive_client=drive,
+        )
+        call_logger.log("drive", "copy_template", status="success")
+    except Exception as exc:  # pragma: no cover - propagated
+        call_logger.log(
+            "drive",
+            "copy_template",
+            status="error",
+            error_code=exc.__class__.__name__,
+            message=str(exc),
+        )
+        raise
+
+    try:
+        sheets.write_export_rows(new_sheet_id, ctx.export_rows, sheet_name=sheet_name)
+        call_logger.log("sheets", "write_export_rows", status="success")
+    except Exception as exc:  # pragma: no cover - propagated
+        call_logger.log(
+            "sheets",
+            "write_export_rows",
+            status="error",
+            error_code=exc.__class__.__name__,
+            message=str(exc),
+        )
+        raise
 
     if write_meta_sheet:
-        meta_rows = build_meta_sheet_rows(ctx.parts, ctx.questions)
+        meta_rows = build_meta_sheet_rows(
+            ctx.parts,
+            ctx.questions,
+            events=ctx.events.events,
+            warnings=warnings + ctx.warnings,
+            call_results=ctx.call_results.results,
+        )
         sheets.append_meta_sheet(new_sheet_id, sheet_name=meta_sheet_name, rows=meta_rows)
+        call_logger.log("sheets", "append_meta_sheet", status="success")
+
+    meta_report = build_meta_report(
+        ctx.parts,
+        ctx.questions,
+        events=ctx.events.events,
+        warnings=warnings + ctx.warnings,
+        call_results=ctx.call_results.results,
+    )
 
     return {
         "sheet_id": new_sheet_id,
         "question_count": len(ctx.export_rows),
-        "warnings": warnings,
+        "warnings": warnings + ctx.warnings,
         "events": ctx.events.events,
+        "call_results": ctx.call_results.results,
+        "call_failures": ctx.call_results.failures,
+        "meta_report": meta_report,
     }
 
